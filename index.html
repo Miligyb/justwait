@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>&#8203;</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #ffffff;
+  color: #000000;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ПК и горизонтальные экраны — строго в одну строку */
+@media (min-width: 768px) {
+  #timer {
+    flex-direction: row;
+    white-space: nowrap;
+    gap: clamp(0.4rem, 1.2vw, 1.5rem);
+    font-size: clamp(2.5rem, 8.5vw, 11rem);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .colon {
+    display: inline-block;
+    transform: translateY(-0.06em);
+  }
+}
+
+/* Смартфоны — вертикальный столбик */
+@media (max-width: 767px) {
+  #timer {
+    flex-direction: column;
+    gap: clamp(0.2rem, 1.5dvh, 1.5rem);
+    font-size: clamp(4rem, 15dvh, 16rem);
+    line-height: 0.88;
+    letter-spacing: -0.04em;
+  }
+  .colon {
+    display: none;
+  }
+}
+
+.unit {
+  display: inline-block;
+  text-align: center;
+}
+
+/* Надпись о старте в самом низу */
+#notice {
+  position: fixed;
+  bottom: clamp(1rem, 3dvh, 2.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+#phone {
+  display: none;
+  font-size: clamp(1.8rem, 7.5vw, 8.5rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  text-align: center;
+  white-space: nowrap;
+}
+
+#phone a {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+  cursor: pointer;
+}
+
+#phone a:hover,
+#phone a:focus,
+#phone a:active {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+</style>
+</head>
+<body>
+
+<div id="timer">
+  <span class="unit" id="d">07</span><span class="colon">:</span>
+  <span class="unit" id="h">00</span><span class="colon">:</span>
+  <span class="unit" id="m">00</span><span class="colon">:</span>
+  <span class="unit" id="s">00</span>
+</div>
+
+<div id="notice" style="display:none;">31.10.2026 00:01 MSK</div>
+
+<div id="phone"></div>
+
+<script>
+// ============================================================
+// ТАЙМИНГИ ПО МОСКОВСКОМУ ВРЕМЕНИ (UTC+3)
+// Старт: 31 октября 2026 года в 00:01:00 МСК
+// Финиш: 7 ноября 2026 года в 00:01:00 МСК (ровно 7 суток)
+// ============================================================
+const START_TIMESTAMP = new Date('2026-10-31T00:01:00+03:00').getTime();
+const DURATION = 7 * 24 * 60 * 60 * 1000;
+const TARGET_TIMESTAMP = START_TIMESTAMP + DURATION;
+
+const PHONE_NUMBER = '88122008914';
+const BUSY_SIGNAL_FREQUENCY = 425;
+const PULSE_ON_DURATION = 350;
+const PULSE_OFF_DURATION = 350;
+
+let audioContext = null;
+let oscillator = null;
+let gainNode = null;
+let isAudioPlaying = false;
+let isPhaseTwo = false;
+
+const timerEl = document.getElementById('timer');
+const noticeEl = document.getElementById('notice');
+const phoneEl = document.getElementById('phone');
+const dEl = document.getElementById('d');
+const hEl = document.getElementById('h');
+const mEl = document.getElementById('m');
+const sEl = document.getElementById('s');
+
+function pad(num) {
+  return String(num).padStart(2, '0');
+}
+
+function updateTimer() {
+  if (isPhaseTwo) return;
+
+  const now = Date.now();
+
+  if (now >= TARGET_TIMESTAMP) {
+    enterPhaseTwo();
+    return;
+  }
+
+  let remaining;
+  if (now < START_TIMESTAMP) {
+    remaining = DURATION;
+    if (noticeEl && noticeEl.style.display !== 'block') {
+      noticeEl.style.display = 'block';
+    }
+  } else {
+    remaining = TARGET_TIMESTAMP - now;
+    if (noticeEl && noticeEl.parentNode) {
+      noticeEl.remove();
+    }
+  }
+
+  const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+
+  dEl.textContent = pad(days);
+  hEl.textContent = pad(hours);
+  mEl.textContent = pad(minutes);
+  sEl.textContent = pad(seconds);
+
+  requestAnimationFrame(updateTimer);
+}
+
+function unlockAudioEarly() {
+  if (!audioContext) {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      gainNode = audioContext.createGain();
+      gainNode.connect(audioContext.destination);
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+
+      oscillator = audioContext.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(BUSY_SIGNAL_FREQUENCY, audioContext.currentTime);
+      oscillator.connect(gainNode);
+      oscillator.start();
+    } catch (e) {}
+  }
+
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+
+  if (isPhaseTwo && !isAudioPlaying) {
+    startBusySignal();
+  }
+}
+
+window.addEventListener('click', unlockAudioEarly, { passive: true });
+window.addEventListener('touchstart', unlockAudioEarly, { passive: true });
+window.addEventListener('keydown', unlockAudioEarly, { passive: true });
+
+function enterPhaseTwo() {
+  if (isPhaseTwo) return;
+  isPhaseTwo = true;
+
+  if (timerEl && timerEl.parentNode) timerEl.remove();
+  if (noticeEl && noticeEl.parentNode) noticeEl.remove();
+  phoneEl.style.display = 'block';
+  phoneEl.innerHTML = `<a href="tel:${PHONE_NUMBER}">${PHONE_NUMBER}</a>`;
+
+  unlockAudioEarly();
+  if (audioContext && audioContext.state === 'running') {
+    startBusySignal();
+  }
+}
+
+function startBusySignal() {
+  if (isAudioPlaying || !gainNode || !audioContext) return;
+  if (audioContext.state !== 'running') {
+    audioContext.resume().then(() => {
+      if (!isAudioPlaying) {
+        isAudioPlaying = true;
+        pulseTone();
+      }
+    }).catch(() => {});
+    return;
+  }
+  isAudioPlaying = true;
+  pulseTone();
+}
+
+function pulseTone() {
+  if (!isAudioPlaying || !gainNode || !audioContext) return;
+
+  const now = audioContext.currentTime;
+  const rampTime = 0.005;
+
+  gainNode.gain.cancelScheduledValues(now);
+  gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+  gainNode.gain.linearRampToValueAtTime(0.3, now + rampTime);
+
+  setTimeout(() => {
+    if (!isAudioPlaying || !gainNode || !audioContext) return;
+
+    const offTime = audioContext.currentTime;
+    gainNode.gain.cancelScheduledValues(offTime);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, offTime);
+    gainNode.gain.linearRampToValueAtTime(0, offTime + rampTime);
+
+    setTimeout(pulseTone, PULSE_OFF_DURATION);
+  }, PULSE_ON_DURATION);
+}
+
+// Инициализация
+if (Date.now() >= TARGET_TIMESTAMP) {
+  enterPhaseTwo();
+} else {
+  updateTimer();
+}
+</script>
+
+</body>
+</html>
